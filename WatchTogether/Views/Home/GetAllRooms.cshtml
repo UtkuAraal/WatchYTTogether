@@ -1,0 +1,30 @@
+﻿@using WatchTogether.Presentation.Models;
+@model List<RoomViewModel>
+@{
+}
+<style>
+    .card {
+      margin-bottom: 20px;
+    }
+  </style>
+ <div class="container my-3">
+    <h1 class="text-center">Oda Listesi</h1>
+    <div class="row">
+
+        @foreach (var room in Model)
+        {
+            <div class="col-sm-6 col-md-4 col-lg-3">
+                 <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">@room.RoomName</h5>
+                        <a href="#" class="btn btn-primary">Katıl</a>
+                    </div>
+                </div>
+            </div>
+        }
+        
+      
+    </div>
+  </div>
+
+

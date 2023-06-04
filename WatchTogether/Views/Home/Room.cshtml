@@ -1,0 +1,219 @@
+﻿<style>
+  /* CSS özelleştirmeleri */
+  
+  #chat {
+    height: 400px;
+    overflow-y: scroll;
+  }
+</style>
+
+<div class="container">
+  <div class="row">
+    <div class="col-lg-8">
+      <!-- Video Oynatıcı -->
+      <div id="player"></div>
+    </div>
+    <div class="col-lg-4">
+      <!-- Chat -->
+      <div id="chat">
+        <div class="card">
+          <div class="card-header">
+            Chat
+          </div>
+          <div class="card-body">
+            <ul id="chatMessages" class="list-unstyled"></ul>
+          </div>
+          <div class="card-footer">
+            <input type="text" id="messageInput" class="form-control" placeholder="Mesajınızı girin">
+            <button id="sendButton" class="btn btn-primary">Gönder</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script src="~/js/signalr/dist/browser/signalr.js"></script>
+<script src="~/js/chat.js"></script>
+
+@section Scripts
+{
+  <script>
+    "use strict";
+    
+
+    // SignalR hub bağlantısı oluşturma
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl("/roomHub") 
+      .build();
+   
+    // YouTube Player API yüklendikten sonra çalışacak işlev
+    // this code loads the IFrame Player API code asynchronously
+var tag = document.createElement('script');
+
+tag.src = "https://www.youtube.com/iframe_api";
+var firstScriptTag = document.getElementsByTagName('script')[0];
+firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+// this function creates an <iframe> (and YouTube player)
+// after the API code downloads.
+var player;
+var groupName = "@ViewBag.id";
+function onYouTubeIframeAPIReady() {
+    
+    player = new YT.Player('player', {
+        height: '450',
+        width: '800',
+        videoId: 'M7lc1UVf-VE',
+        playerVars: {
+            'playsinline': 1,
+            'start': 0,
+            'disablekb': 1
+        },
+        events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange
+        }
+    });
+}
+    function onPlayerReady(event) {
+        event.target.playVideo();
+      }
+    // Oynatıcı durumu değiştiğinde çalışacak işlev
+    function onPlayerStateChange(event) {
+      // Durumu kontrol et
+      if (event.data === YT.PlayerState.PLAYING) {
+        // Oynatıcı başlatıldığında yapılacak işlemleri buraya yazın
+        console.log('Oynatıcı başladı');
+        // SignalR üzerinden sunucuya "Play" olayını bildirin
+        connection.invoke("Play", groupName)
+          .catch((err) => {
+            console.error("Play olayı gönderilemedi: " + err);
+          });
+      } else if (event.data === YT.PlayerState.PAUSED) {
+        // Oynatıcı durdurulduğunda yapılacak işlemleri buraya yazın
+        console.log('Oynatıcı durduruldu');
+        trackVideoTime();
+        // SignalR üzerinden sunucuya "Pause" olayını bildirin
+        connection.invoke("Pause", groupName)
+          .catch((err) => {
+            console.error("Pause olayı gönderilemedi: " + err);
+          });
+      }
+    }
+    
+    // SignalR hub bağlantısını başlatma
+    connection.start()
+      .then(() => {
+        connection.invoke("JoinGroup", groupName).catch(function (err) {
+            return console.error(err.toString());
+        });
+        console.log("SignalR hub bağlantısı başlatıldı.");
+      })
+      .catch((err) => {
+        console.error("SignalR hub bağlantısı başlatılamadı: " + err);
+      });
+
+
+
+
+      function trackVideoTime() {
+  const currentTime = player.getCurrentTime();
+  
+    // Video zamanı değişti, işlemleri burada gerçekleştirin
+    console.log('Video zamanı değişti:', currentTime);
+    // Örneğin, zaman değiştiğinde sunucuya bildirim gönderebilirsiniz
+    sendVideoTime(currentTime);
+    
+  
+}
+
+function sendVideoTime(currentTime) {
+  connection.invoke("SyncVideoTime", currentTime, groupName)
+    .catch((err) => {
+      console.error("Video süresi gönderilemedi: " + err);
+    });
+}
+
+
+
+
+
+      // Play olayını dinleme
+  connection.on("Play", () => {
+    playVideo(); // Videoyu başlatma fonksiyonu
+  });
+
+  // Videoyu başlatma fonksiyonu
+  function playVideo() {
+    player.playVideo(); // YouTube videosunu başlatma
+  }
+
+  // Pause olayını dinleme
+  connection.on("Pause", () => {
+    pauseVideo(); // Videoyu durdurma fonksiyonu
+  });
+
+  // Videoyu durdurma fonksiyonu
+  function pauseVideo() {
+    player.pauseVideo(); // YouTube videosunu duraklatma
+  }
+
+
+
+
+  connection.on("ReceiveVideoTime", (currentTime) => {
+  // Video süresini güncelleme işlemleri burada gerçekleştirin
+  // Örneğin, video oynatıcının zamanını currentTime'e ayarlayabilirsiniz
+  player.seekTo(currentTime, true);
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // Chat mesajını gönderme işlevi
+    function sendChatMessage() {
+      const message = $('#messageInput').val();
+      connection.invoke("ChatMessage", message, groupName)
+        .catch((err) => {
+          console.error("Chat mesajı gönderilemedi: " + err);
+        });
+      $('#messageInput').val('');
+    }
+
+    // Yeni chat mesajını liste şeklinde ekleme işlevi
+    function appendChatMessage(message) {
+      const li = $('<li>').text(message);
+      $('#chatMessages').append(li);
+    }
+
+    // Gönder düğmesine tıklandığında chat mesajını sunucuya gönderme
+    $('#sendButton').click(() => {
+      sendChatMessage();
+    });
+
+    // Klavyeden "Enter" tuşuna basıldığında chat mesajını sunucuya gönderme
+    $('#messageInput').keypress((event) => {
+      if (event.keyCode === 13) {
+        sendChatMessage();
+      }
+    });
+
+    // SignalR üzerinden gelen chat mesajlarını dinleme
+    connection.on("ChatMessage", (message) => {
+      appendChatMessage(message); // Chat mesajını ekleme işlevi çağırılıyor
+    });
+  </script>
+}
